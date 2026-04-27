@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, DateTime, Float, Integer
+from sqlalchemy import String, DateTime, Float, Integer, Boolean
+
 from db import Base
 
 
@@ -24,3 +25,7 @@ class FallReading(Base):
     possible_fall: Mapped[bool] = mapped_column(nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    alert_processed = mapped_column(Boolean, nullable=True, default=False, index=True)
+    alert_processed_at = mapped_column(DateTime(timezone=True), nullable=True)
+    alert_id = mapped_column(Integer, nullable=True)
