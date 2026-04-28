@@ -1,75 +1,3 @@
-# # auth_endpoints.py
-# from fastapi import APIRouter, Depends, HTTPException, status
-# from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-# from sqlalchemy import select, update
-# from sqlalchemy.ext.asyncio import AsyncSession
-
-# from db import get_db
-
-# from AuthController.jwt_func import create_access_token, now_utc as utcnow, decode_access_token as decode_token
-
-# from Schemas.AuthSchema import LoginRequest, TokenResponse
-# from DataModels.SessionModel import ApiSession
-# from DataModels.UserModel import User
-
-
-# router = APIRouter(prefix="/auth", tags=["Auth"])
-# bearer = HTTPBearer(auto_error=True)
-
-
-# def verify_password(plain: str, hashed: str) -> bool:
-#     # TODO: replace with bcrypt/argon2 check
-#     return plain == hashed
-
-# @router.post("/login", response_model=TokenResponse)
-# async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-#     res = await db.execute(select(User).where(User.email == payload.email))
-#     user = res.scalar_one_or_none()
-
-#     if not user or not verify_password(payload.password, user.password):
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-#     token, jti, expires_at = create_access_token(user_id=user.id, is_admin=user.is_admin)
-#     now = utcnow()
-
-#     db.add(
-#         ApiSession(
-#             jti=jti,
-#             user_id=user.id,
-#             issued_at=now,
-#             last_seen=now,
-#             revoked=False,
-#             expires_at=expires_at,
-#         )
-#     )
-#     await db.commit()
-
-#     return TokenResponse(access_token=token, email=user.email)
-
-# @router.post("/logout")
-# async def logout(
-#     creds: HTTPAuthorizationCredentials = Depends(bearer),
-#     db: AsyncSession = Depends(get_db),
-# ):
-#     # Revoke session immediately
-#     try:
-#         payload = decode_token(creds.credentials, verify_exp=False)
-#     except Exception:
-#         # If token is invalid, treat as already logged out
-#         return {"Token Invalid": True}
-
-#     jti = payload.get("jti")
-#     if not jti:
-#         return {"Not JTI": True}
-
-#     await db.execute(update(ApiSession).where(ApiSession.jti == jti).values(revoked=True))
-#     await db.commit()
-#     return {"Logged Out": True}
-
-
-# @router.get("/debug-token")
-# async def debug_token(creds: HTTPAuthorizationCredentials = Depends(bearer)):
-#     return decode_token(creds.credentials, verify_exp=False)
 
 # auth_endpoints.py
 from fastapi import APIRouter, Depends
@@ -82,7 +10,7 @@ from Schemas.UserSchema import SyncUserRequest
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-
+#SYNC USER ENDPOINT
 @router.post("/sync")
 async def sync_user(
     payload: SyncUserRequest,
@@ -130,7 +58,7 @@ async def sync_user(
         },
     }
 
-
+#GET CURRENT USER ENDPOINT
 @router.get("/me")
 async def me(current_user: User = Depends(get_current_user)):
     return {

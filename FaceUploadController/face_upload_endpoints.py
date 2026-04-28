@@ -18,7 +18,7 @@ router = APIRouter(prefix="/faces", tags=["Faces"])
 
 UPLOAD_ROOT = Path("/opt/IoTAppAPI/uploads/faces")
 
-
+#FACE IMAGE UPLOAD ENDPOINT
 @router.post("/upload")
 async def upload_face_images(
     person_name: str = Form(...),
@@ -60,6 +60,7 @@ async def upload_face_images(
         "files": saved,
     }
 
+#LIST USER'S FACE IMAGES ENDPOINT
 @router.get("/me/files")
 async def list_my_face_images(
     current_user: User = Depends(get_current_user),
@@ -77,7 +78,7 @@ async def list_my_face_images(
 
     return files
 
-
+#GET USER'S FACE IMAGE ENDPOINT
 @router.get("/me/files/{filename}")
 async def get_my_face_image(
     filename: str,
@@ -89,7 +90,7 @@ async def get_my_face_image(
 
     return FileResponse(path)
 
-
+#DOWNLOAD FACE DATASET FOR DEVICE ENDPOINT
 @router.get("/device/{device_id}/archive")
 async def download_face_archive_for_device(device_id: str):
     async with AsyncSessionLocal() as db:

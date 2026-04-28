@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from requests import delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +12,7 @@ from Schemas.DeviceSchema import DeviceResponse, LinkDeviceRequest, UpdateDevice
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
-
+#LINK DEVICE ENDPOINT
 @router.post("/link", response_model=DeviceResponse)
 async def link_device(
     payload: LinkDeviceRequest,
@@ -63,7 +64,7 @@ async def link_device(
         device_type=device.device_type,
     )
 
-
+#GET MY DEVICES ENDPOINT
 @router.get("/mine", response_model=list[DeviceResponse])
 async def get_my_devices(
     device_type: int | None = Query(default=None),
@@ -92,7 +93,7 @@ async def get_my_devices(
         for device in devices
     ]
 
-
+#GET ALL DEVICES ENDPOINT
 @router.get("/all", response_model=list[DeviceResponse])
 async def get_all_devices(
     current_user: User = Depends(get_current_user),
@@ -113,6 +114,7 @@ async def get_all_devices(
         for device in devices
     ]
 
+#UPDATE DEVICE NAME ENDPOINT
 @router.patch("/{device_id}/name", response_model=DeviceResponse)
 async def update_device_name(
     device_id: str,
@@ -156,3 +158,41 @@ async def update_device_name(
         device_type=device.device_type,
     )
 
+
+#REMOVE DEVICE RELATIONSHIP ENDPOINT
+@router.delete("/{device_id}/relationship")
+async def remove_device_relationship(
+    device_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        device_result = await db.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        device = device_result.scalar_one_or_none()
+
+        if not device:
+            raise HTTPException(status_code=404, detail="Device not found")
+
+        link_result = await db.execute(
+            select(DeviceLink).where(
+                DeviceLink.device_pk == device.id,
+                DeviceLink.user_id == current_user.id,
+            )
+        )
+        link = link_result.scalar_one_or_none()
+
+        if not link:
+            raise HTTPException(status_code=404, detail="Device relationship not found")
+
+        await db.delete(link)
+        await db.commit()
+
+        return {"ok": True, "message": "Device relationship removed"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("REMOVE DEVICE RELATIONSHIP ERROR:", repr(e))
+        raise HTTPException(status_code=500, detail=str(e))

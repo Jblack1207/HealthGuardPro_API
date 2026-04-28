@@ -1,4 +1,5 @@
 from contextlib import suppress
+import asyncio
 
 from fastapi import FastAPI
 from AuthController.auth_endpoints import router as auth_router
@@ -9,8 +10,8 @@ from WebRTCController.webrtc_endpoints import router as webrtc_router
 from FaceUploadController.face_upload_endpoints import router as face_upload_router
 from FallDetectionController.fall_detection_endpoints import router as fall_detection_router
 from AlertsController.alerts_endpoints import router as alerts_router
+from PushTokenController.pushtoken_endpoints import router as pushtoken_router
 from AlertsController.fall_alertService import process_fall_alerts
-import asyncio
 
 
 from AuthController.auth_dependencies import init_firebase
@@ -45,6 +46,9 @@ app.include_router(fall_detection_router)
 
 #alerts routes
 app.include_router(alerts_router)
+
+#push token routes
+app.include_router(pushtoken_router)
 
 
 fall_alert_task = None

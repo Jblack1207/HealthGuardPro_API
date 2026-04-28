@@ -1,190 +1,3 @@
-# # auth_dependencies.py
-# from datetime import timedelta
-# from typing import Optional
-# import os
-
-# import jwt
-# from fastapi import Depends, HTTPException, status, Header
-# from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-# from sqlalchemy import select, update
-# from sqlalchemy.ext.asyncio import AsyncSession
-
-# from db import get_db
-
-# from DataModels.SessionModel import ApiSession
-# from DataModels.UserModel import User
-# from AuthController.jwt_func import decode_access_token as decode_token, now_utc as utcnow
-
-# bearer = HTTPBearer(auto_error=True)
-
-# INACTIVITY_MINUTES = 15
-# # Reduce DB writes: only update last_seen if older than this many seconds
-# LAST_SEEN_WRITE_COOLDOWN_SECONDS = 30
-
-# async def _get_session(db: AsyncSession, jti: str) -> Optional[ApiSession]:
-#     res = await db.execute(select(ApiSession).where(ApiSession.jti == jti))
-#     return res.scalar_one_or_none()
-
-# async def get_current_user(
-#     creds: HTTPAuthorizationCredentials = Depends(bearer),
-#     db: AsyncSession = Depends(get_db),
-# ) -> User:
-#     token = creds.credentials
-
-#     try:
-#         payload = decode_token(token)  # checks signature + exp
-#     except jwt.ExpiredSignatureError:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-#     except jwt.PyJWTError:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-#     jti = payload.get("jti")
-#     sub = payload.get("sub")
-#     if not jti or not sub:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-
-#     now = utcnow()
-
-#     sess = await _get_session(db, jti)
-#     if not sess:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session not found")
-#     if sess.revoked:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked")
-
-#     # Hard expiry (backstop; JWT exp already checked)
-#     if now > sess.expires_at:
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-
-#     # Inactivity timeout
-#     if now - sess.last_seen > timedelta(minutes=INACTIVITY_MINUTES):
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session timed out")
-
-#     # Update last_seen with cooldown to avoid writing every request
-#     if (now - sess.last_seen).total_seconds() >= LAST_SEEN_WRITE_COOLDOWN_SECONDS:
-#         await db.execute(
-#             update(ApiSession)
-#             .where(ApiSession.jti == jti)
-#             .values(last_seen=now)
-#         )
-#         await db.commit()
-
-#     # Fetch user
-#     res = await db.execute(select(User).where(User.id == int(sub)))
-#     user = res.scalar_one_or_none()
-#     if not user:
-#         # revoke session if user no longer exists
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-
-#     return user
-
-
-# async def require_admin_or_device(
-#     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-#     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
-#     db: AsyncSession = Depends(get_db),
-# ):
-#     device_api_key = os.getenv("API_KEY")
-
-#     # Allow device access via API key
-#     if x_api_key and device_api_key and x_api_key == device_api_key:
-#         return {"auth_type": "device"}
-
-#     # Otherwise require JWT admin user
-#     if not creds:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Admin token or valid device API key required",
-#         )
-
-#     token = creds.credentials
-
-#     try:
-#         payload = decode_token(token)  # checks signature + exp
-#     except jwt.ExpiredSignatureError:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Token expired",
-#         )
-#     except jwt.PyJWTError:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token",
-#         )
-
-#     jti = payload.get("jti")
-#     sub = payload.get("sub")
-#     if not jti or not sub:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token payload",
-#         )
-
-#     now = utcnow()
-
-#     sess = await _get_session(db, jti)
-#     if not sess:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Session not found",
-#         )
-#     if sess.revoked:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Session revoked",
-#         )
-
-#     # Hard expiry
-#     if now > sess.expires_at:
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Session expired",
-#         )
-
-#     # Inactivity timeout
-#     if now - sess.last_seen > timedelta(minutes=INACTIVITY_MINUTES):
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Session timed out",
-#         )
-
-#     # Update last_seen with cooldown
-#     if (now - sess.last_seen).total_seconds() >= LAST_SEEN_WRITE_COOLDOWN_SECONDS:
-#         await db.execute(
-#             update(ApiSession)
-#             .where(ApiSession.jti == jti)
-#             .values(last_seen=now)
-#         )
-#         await db.commit()
-
-#     # Fetch user
-#     res = await db.execute(select(User).where(User.id == int(sub)))
-#     user = res.scalar_one_or_none()
-#     if not user:
-#         sess.revoked = True
-#         await db.commit()
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="User not found",
-#         )
-
-#     if not user.is_admin:
-#         raise HTTPException(
-#             status_code=status.HTTP_403_FORBIDDEN,
-#             detail="Admin access required",
-#         )
-
-#     return {"auth_type": "admin", "user": user}
-
 # auth_dependencies.py
 import os
 
@@ -200,7 +13,7 @@ from DataModels.UserModel import User
 
 bearer = HTTPBearer(auto_error=False)
 
-
+# Initialize Firebase Admin SDK at startup
 def init_firebase() -> None:
     if firebase_admin._apps:
         return
@@ -212,14 +25,14 @@ def init_firebase() -> None:
     cred = credentials.Certificate(cred_path)
     firebase_admin.initialize_app(cred)
 
-
+# Helper function to get user by Firebase UID
 async def _get_user_by_firebase_uid(db: AsyncSession, firebase_uid: str) -> User | None:
     res = await db.execute(
         select(User).where(User.firebase_uid == firebase_uid)
     )
     return res.scalar_one_or_none()
 
-
+# Dependency to get Firebase identity from token
 async def get_firebase_identity(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> dict:
@@ -248,7 +61,7 @@ async def get_firebase_identity(
 
     return decoded_token
 
-
+# Dependency to get current user from Firebase token
 async def get_current_user(
     decoded_token: dict = Depends(get_firebase_identity),
     db: AsyncSession = Depends(get_db),
@@ -264,7 +77,7 @@ async def get_current_user(
 
     return user
 
-
+# Dependency to require admin access or valid device API key
 async def require_admin_or_device(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),

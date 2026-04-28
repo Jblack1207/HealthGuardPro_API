@@ -11,7 +11,7 @@ from AuthController.auth_dependencies import require_admin_or_device, get_curren
 
 router = APIRouter(prefix="/heart-rate-monitor", tags=["Heart Rate"])
 
-
+#CREATE HEART RATE READING ENDPOINT
 @router.post(
     "/createReading",
     response_model=HeartRateReadingResponse,
@@ -52,6 +52,8 @@ async def create_heart_rate_reading(
         temperature=reading.temperature,
         created_at=reading.created_at,
     )
+
+#GET HEART RATE READINGS ENDPOINT
 @router.get(
     "/reading",
     response_model=list[HeartRateReadingResponse],

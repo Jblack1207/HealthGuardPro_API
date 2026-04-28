@@ -9,7 +9,7 @@ from Schemas.FallDetectionSchema import FallReadingCreate, FallReadingResponse
 
 router = APIRouter(prefix="/fall-detector", tags=["Fall Detector"])
 
-
+#CREATE FALL READING ENDPOINT
 @router.post(
     "/createReading",
     response_model=FallReadingResponse,
@@ -53,6 +53,7 @@ async def create_fall_reading(
         created_at=reading.created_at,
     )
 
+#GET FALL READINGS ENDPOINT
 @router.get(
     "/reading",
     response_model=list[FallReadingResponse],
